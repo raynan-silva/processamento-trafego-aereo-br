@@ -1,0 +1,23 @@
+[project]
+name = "pyspark-anac-air-traffic-pipeline"
+version = "1.0.0"
+description = "Pipeline PySpark para processamento de ~20 GB de dados de tráfego aéreo brasileiro (ANAC 2000-2025) em ambiente com RAM limitada."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Raynan" }]
+keywords = ["pyspark", "anac", "big-data", "etl", "air-traffic", "brazil"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering :: Information Analysis",
+]
+
+dependencies = [
+    "pyspark>=4.0",
+    "kagglehub>=1.0",
+]
+
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.backends._legacy:_Backend"
