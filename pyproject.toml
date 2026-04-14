@@ -16,6 +16,9 @@ classifiers = [
 dependencies = [
     "pyspark>=4.0",
     "kagglehub>=1.0",
+    "matplotlib>=3.8",
+    "pandas>=2.0",
+    "ipykernel>=6.0",
 ]
 
 [build-system]
