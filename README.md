@@ -6,6 +6,8 @@ O projeto demonstra como processar um arquivo CSV maior que a memória RAM dispo
 
 Dataset: [Brazil Air Traffic Data 2000–2025 (ANAC)](https://www.kaggle.com/datasets/sturarods/anac-national-civil-aviation-agency-2000-2025)
 
+Slides: [Slides](https://docs.google.com/presentation/d/1lzvXUwgucANrXFa8WVOFmc11WvGHPIR7qYjSsLHdJew/edit?usp=sharing)
+
 ---
 
 ## Visão Geral
