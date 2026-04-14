@@ -4,6 +4,8 @@ Pipeline de dados em **Apache Spark (PySpark)** para processamento de um dataset
 
 O projeto demonstra como processar um arquivo CSV maior que a memória RAM disponível (20 GB de RAM) usando PySpark, com amostragem, limpeza, análise exploratória e persistência em Parquet.
 
+Dataset: [Brazil Air Traffic Data 2000–2025 (ANAC)](https://www.kaggle.com/datasets/sturarods/anac-national-civil-aviation-agency-2000-2025)
+
 ---
 
 ## Visão Geral
