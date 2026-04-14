@@ -14,7 +14,7 @@ O projeto demonstra como processar um arquivo CSV maior que a memória RAM dispo
 | 2 | `create_spark_session()` | Cria a SparkSession com memória limitada (8–12g) |
 | 3 | `load_and_sample_data()` | Lê o CSV e aplica amostragem de 2% |
 | 4 | `clean_and_transform()` | Filtra voos regulares/extras e trata nulos |
-| 5 | `perform_eda()` | Agrega passageiros por companhia e top 5 rotas |
+| 5 | `perform_eda()` | 7 análises exploratórias (companhias, rotas, evolução anual, sazonalidade, doméstico/internacional, aeroportos, market share) |
 | 6 | `save_to_parquet()` | Salva resultado limpo em formato Parquet |
 
 ---
@@ -27,6 +27,8 @@ O projeto demonstra como processar um arquivo CSV maior que a memória RAM dispo
 | Java (JDK) | 17+ |
 | PySpark | 4.0+ |
 | kagglehub | 1.0+ |
+| matplotlib | 3.8+ |
+| pandas | 2.0+ |
 
 Além disso, é necessário ter uma conta no [Kaggle](https://www.kaggle.com/) com o token de API configurado (veja a seção [Configurar Kaggle API](#configurar-kaggle-api)).
 
@@ -147,32 +149,30 @@ python pipeline_anac.py
 
 O pipeline imprime no console:
 
-1. **Passageiros pagos por companhia aérea** — ranking completo
-2. **Top 5 rotas mais movimentadas** — pares origem/destino (ICAO)
-
-Exemplo de saída:
-
-```
-+---------------+------------------+
-|sg_empresa_icao|total_passag_pagos|
-+---------------+------------------+
-|GLO            |1.203728E7        |
-|TAM            |9980900.0         |
-|AZU            |6434981.0         |
-+---------------+------------------+
-
-+--------------+---------------+------------------+
-|sg_icao_origem|sg_icao_destino|total_passag_pagos|
-+--------------+---------------+------------------+
-|SBRJ          |SBSP           |828783.0          |
-|SBSP          |SBRJ           |823093.0          |
-|SBSP          |SBBR           |416603.0          |
-|SBBR          |SBSP           |407010.0          |
-|SBSP          |SBCF           |310600.0          |
-+--------------+---------------+------------------+
-```
+1. **Top 10 companhias por passageiros pagos**
+2. **Top 10 rotas mais movimentadas** (pares origem → destino)
+3. **Evolução anual do tráfego aéreo** (passageiros + voos por ano)
+4. **Sazonalidade mensal** (passageiros por mês)
+5. **Distribuição doméstico vs. internacional**
+6. **Top 10 aeroportos mais movimentados** (origem + destino)
+7. **Market share das companhias aéreas** (%)
 
 Os dados limpos são salvos em `output_parquet/` no formato Apache Parquet.
+
+### Visualizações (Notebook)
+
+Abra o notebook `analise_visual.ipynb` — ele é **autossuficiente** e executa todo o pipeline automaticamente:
+
+```bash
+jupyter notebook analise_visual.ipynb
+```
+
+Na primeira execução, o notebook baixa o dataset, processa e salva em Parquet.
+Nas execuções seguintes, ele detecta o Parquet existente e carrega direto (muito mais rápido).
+
+O notebook inclui 10 visualizações, incluindo análise do impacto da COVID-19 e resumo estatístico.
+
+> **Nota:** O `pipeline_anac.py` também pode ser executado de forma independente via terminal (`python pipeline_anac.py`) — ele imprime as análises no console e gera o Parquet.
 
 ---
 
@@ -180,11 +180,12 @@ Os dados limpos são salvos em `output_parquet/` no formato Apache Parquet.
 
 ```
 .
-├── pipeline_anac.py     # Script principal do pipeline
-├── pyproject.toml       # Metadados e dependências do projeto
-├── README.md            # Este arquivo
+├── pipeline_anac.py      # Script principal do pipeline ETL
+├── analise_visual.ipynb  # Notebook com visualizações gráficas
+├── pyproject.toml        # Metadados e dependências do projeto
+├── README.md             # Este arquivo
 ├── .gitignore
-└── output_parquet/      # Gerado após execução (não versionado)
+└── output_parquet/       # Gerado após execução (não versionado)
 ```
 
 ---
@@ -206,6 +207,9 @@ Variáveis-chave utilizadas no pipeline:
 | `sg_icao_destino` | Aeródromo de destino (ICAO) |
 | `nr_passag_pagos` | Passageiros pagos transportados |
 | `kg_carga_paga` | Carga paga em kg |
+| `nr_ano_referencia` | Ano de referência |
+| `nr_mes_referencia` | Mês de referência |
+| `ds_natureza_etapa` | Natureza da etapa (Doméstica/Internacional) |
 
 ---
 
