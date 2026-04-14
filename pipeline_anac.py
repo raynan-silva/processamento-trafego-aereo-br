@@ -9,7 +9,6 @@ persistência em Parquet de um CSV massivo (~20 GB) em um ambiente com apenas
 import glob
 import logging
 import os
-import sys
 
 import kagglehub
 from pyspark.sql import DataFrame, SparkSession
@@ -175,44 +174,134 @@ def clean_and_transform(df: DataFrame) -> DataFrame:
 # 5. Análise exploratória (EDA)
 # ---------------------------------------------------------------------------
 
-def perform_eda(df: DataFrame) -> None:
+def perform_eda(df: DataFrame) -> dict[str, DataFrame]:
     """Executa análises exploratórias e exibe os resultados no console.
 
     Análises realizadas:
 
-    * **Passageiros pagos por companhia aérea:** agregação por ``sg_empresa_icao``.
-    * **Top 5 rotas mais movimentadas:** agrupamento por par
-      (``sg_icao_origem``, ``sg_icao_destino``) ordenado por total de passageiros.
+    1. **Passageiros pagos por companhia aérea** (top 10).
+    2. **Top 10 rotas mais movimentadas** por passageiros.
+    3. **Evolução anual do tráfego aéreo** (passageiros por ano).
+    4. **Sazonalidade mensal** (passageiros médios por mês).
+    5. **Distribuição doméstico vs. internacional**.
+    6. **Top 10 aeroportos mais movimentados** (origem + destino).
+    7. **Market share das companhias** (% de passageiros pagos).
 
     Args:
         df: DataFrame Spark limpo e transformado.
+
+    Returns:
+        dict[str, DataFrame]: Dicionário com os DataFrames resultantes de
+        cada análise, para uso posterior (ex.: visualizações no notebook).
     """
-    # --- Passageiros pagos por companhia ---
-    logger.info("=== Total de passageiros pagos por companhia aérea ===")
+    results: dict[str, DataFrame] = {}
+
+    # --- 1. Top 10 companhias por passageiros pagos ---
+    logger.info("=== Top 10 companhias por passageiros pagos ===")
     passengers_by_airline: DataFrame = (
         df.groupBy("sg_empresa_icao")
         .agg(F.sum("nr_passag_pagos").alias("total_passag_pagos"))
         .orderBy(F.col("total_passag_pagos").desc())
     )
-    passengers_by_airline.show(truncate=False)
+    passengers_by_airline.show(10, truncate=False)
+    results["passengers_by_airline"] = passengers_by_airline
 
-    # --- Top 5 rotas mais movimentadas ---
-    logger.info("=== Top 5 rotas mais movimentadas ===")
+    # --- 2. Top 10 rotas mais movimentadas ---
+    logger.info("=== Top 10 rotas mais movimentadas ===")
     top_routes: DataFrame = (
         df.groupBy("sg_icao_origem", "sg_icao_destino")
         .agg(F.sum("nr_passag_pagos").alias("total_passag_pagos"))
         .orderBy(F.col("total_passag_pagos").desc())
-        .limit(5)
+        .limit(10)
     )
     top_routes.show(truncate=False)
+    results["top_routes"] = top_routes
+
+    # --- 3. Evolução anual do tráfego aéreo ---
+    logger.info("=== Evolução anual do tráfego aéreo ===")
+    yearly_traffic: DataFrame = (
+        df.groupBy("nr_ano_referencia")
+        .agg(
+            F.sum("nr_passag_pagos").alias("total_passag_pagos"),
+            F.count("*").alias("total_voos"),
+        )
+        .orderBy("nr_ano_referencia")
+    )
+    yearly_traffic.show(30, truncate=False)
+    results["yearly_traffic"] = yearly_traffic
+
+    # --- 4. Sazonalidade mensal (média de passageiros por mês) ---
+    logger.info("=== Sazonalidade mensal (passageiros por mês) ===")
+    monthly_seasonality: DataFrame = (
+        df.groupBy("nr_mes_referencia")
+        .agg(F.sum("nr_passag_pagos").alias("total_passag_pagos"))
+        .orderBy("nr_mes_referencia")
+    )
+    monthly_seasonality.show(12, truncate=False)
+    results["monthly_seasonality"] = monthly_seasonality
+
+    # --- 5. Distribuição doméstico vs. internacional ---
+    logger.info("=== Distribuição doméstico vs. internacional ===")
+    nature_dist: DataFrame = (
+        df.groupBy("ds_natureza_etapa")
+        .agg(
+            F.sum("nr_passag_pagos").alias("total_passag_pagos"),
+            F.count("*").alias("total_voos"),
+        )
+        .orderBy(F.col("total_passag_pagos").desc())
+    )
+    nature_dist.show(truncate=False)
+    results["nature_distribution"] = nature_dist
+
+    # --- 6. Top 10 aeroportos mais movimentados (origem + destino) ---
+    logger.info("=== Top 10 aeroportos mais movimentados ===")
+    orig: DataFrame = (
+        df.select(
+            F.col("sg_icao_origem").alias("aeroporto"),
+            F.col("nr_passag_pagos"),
+        )
+    )
+    dest: DataFrame = (
+        df.select(
+            F.col("sg_icao_destino").alias("aeroporto"),
+            F.col("nr_passag_pagos"),
+        )
+    )
+    top_airports: DataFrame = (
+        orig.union(dest)
+        .groupBy("aeroporto")
+        .agg(F.sum("nr_passag_pagos").alias("total_passag_pagos"))
+        .orderBy(F.col("total_passag_pagos").desc())
+        .limit(10)
+    )
+    top_airports.show(truncate=False)
+    results["top_airports"] = top_airports
+
+    # --- 7. Market share das companhias (%) ---
+    logger.info("=== Market share das companhias aéreas (%) ===")
+    total_passengers: int = (
+        df.agg(F.sum("nr_passag_pagos")).collect()[0][0] or 0
+    )
+    market_share: DataFrame = (
+        passengers_by_airline
+        .withColumn(
+            "market_share_pct",
+            F.round(F.col("total_passag_pagos") / F.lit(total_passengers) * 100, 2),
+        )
+        .limit(10)
+    )
+    market_share.show(truncate=False)
+    results["market_share"] = market_share
+
+    return results
 
 
 # ---------------------------------------------------------------------------
 # 6. Salvamento em Parquet
 # ---------------------------------------------------------------------------
 
-def save_to_parquet(df: DataFrame, output_path: str) -> None:
-    """Salva o DataFrame processado em formato Parquet particionado.
+def save_to_parquet(df: DataFrame, output_path: str, num_partitions: int = 8) -> None:
+    """Salva o DataFrame processado em formato Parquet.
 
     O formato Parquet é colunar e comprimido, sendo ideal para análises
     futuras com leitura parcial de colunas e predicados push-down.
@@ -220,13 +309,15 @@ def save_to_parquet(df: DataFrame, output_path: str) -> None:
     Args:
         df: DataFrame Spark a ser persistido.
         output_path: Caminho do diretório de destino para os arquivos Parquet.
+        num_partitions: Número de partições de saída (padrão ``8``).
+            Utiliza ``coalesce`` para consolidar os arquivos gerados.
 
     Raises:
         RuntimeError: Se a escrita falhar.
     """
     try:
-        df.write.mode("overwrite").parquet(output_path)
-        logger.info("Dados salvos em Parquet: %s", output_path)
+        df.coalesce(num_partitions).write.mode("overwrite").parquet(output_path)
+        logger.info("Dados salvos em Parquet (%d partições): %s", num_partitions, output_path)
     except Exception as exc:
         raise RuntimeError(f"Erro ao salvar Parquet: {exc}") from exc
 
@@ -253,7 +344,8 @@ def main() -> None:
         df_clean: DataFrame = clean_and_transform(df_raw)
 
         # 5. Análise exploratória
-        perform_eda(df_clean)
+        eda_results: dict[str, DataFrame] = perform_eda(df_clean)
+        logger.info("Análises concluídas: %s", list(eda_results.keys()))
 
         # 6. Persistência
         output_dir: str = os.path.join(
